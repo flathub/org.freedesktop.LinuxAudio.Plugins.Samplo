@@ -30,13 +30,12 @@ modules:
     build-commands:
       - cargo --offline fetch --manifest-path Cargo.toml --verbose
       - cargo --offline build --release --verbose
-      
+
       - install -Dm755 target/release/libsamplo.so ${FLATPAK_DEST}/clap/Samplo.clap
       - strip ${FLATPAK_DEST}/clap/Samplo.clap
-      
+
       - install -Dm644 packaging/org.freedesktop.LinuxAudio.Plugins.Samplo.metainfo.xml -t ${FLATPAK_DEST}/share/metainfo/
-      
-      
+
       - install -Dm644 LICENSE ${FLATPAK_DEST}/share/licenses/samplo/LICENSE
 
     sources:
@@ -44,5 +43,12 @@ modules:
         url: https://github.com/mlm-games/samplo-clap.git
         tag: v1.2.7
         commit: 6d25f801fbdf364307194695ee9643a1da466cbf
+        x-checker-data:
+          type: git
+          tag-pattern: ^v([\d.]+)$
 
-      - cargo-sources.json
+      - type: file
+        path: cargo-sources.json
+        x-checker-data:
+          type: cargo
+          cargo-root: .

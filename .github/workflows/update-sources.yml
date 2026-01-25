@@ -1,0 +1,62 @@
+name: Update Cargo Sources
+
+on:
+  pull_request:
+    branches: [master, main]
+    paths:
+      - 'org.freedesktop.LinuxAudio.Plugins.Samplo.yml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Upstream tag to use (e.g., v1.2.7, leave empty to read from manifest)'
+        required: false
+        default: ''
+
+jobs:
+  update-cargo-sources:
+    runs-on: ubuntu-latest
+    # Run if manually triggered OR if PR is from the bot
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.actor == 'flathubbot' ||
+      github.actor == 'flatpak-external-data-checker[bot]'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: |
+          pip install toml aiohttp
+          wget https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/cargo/flatpak-cargo-generator.py
+
+      - name: Extract tag from manifest
+        id: get-tag
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            # Extract tag (includes 'v' prefix, e.g., v1.2.7)
+            TAG=$(grep -oP 'tag: \Kv[0-9.]+' org.freedesktop.LinuxAudio.Plugins.Samplo.yml)
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Clone upstream and regenerate cargo-sources.json
+        run: |
+          git clone --branch ${{ steps.get-tag.outputs.tag }} --depth 1 https://github.com/mlm-games/samplo-clap.git upstream
+          python3 flatpak-cargo-generator.py upstream/Cargo.lock -o cargo-sources.json
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add cargo-sources.json
+          if git diff --staged --quiet; then
+            echo "No changes to cargo-sources.json"
+          else
+            git commit -m "Update cargo-sources.json for ${{ steps.get-tag.outputs.tag }}"
+            git push
+          fi
